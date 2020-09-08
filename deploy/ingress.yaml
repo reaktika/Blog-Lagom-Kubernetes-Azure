@@ -1,0 +1,22 @@
+apiVersion: "extensions/v1beta1"
+kind: Ingress
+metadata:
+  name: "cookie-ingress"
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    ingress.kubernetes.io/ssl-redirect: "false"
+  namespace: "default"
+spec:
+  rules:
+    - host: cookiemonster.westeurope.cloudapp.azure.com
+      http:
+        paths:
+          - path: "/api/cookie-service"
+            backend:
+              serviceName: "cookie-service"
+              servicePort: 9000
+          - path: "/api/monster-service"
+            backend:
+              serviceName: "monster-service"
+              servicePort: 9000

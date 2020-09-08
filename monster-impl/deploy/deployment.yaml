@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: monster-app
+  name: monster-app
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: monster-app
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: monster-app
+        actorSystemName: monster-app
+    spec:
+      containers:
+        - name: monster-app
+          image: cookieregistry.azurecr.io/monster-app:1.0.0
+          ports:
+            # akka remoting
+            - name: remoting
+              containerPort: 2552
+              protocol: TCP
+            # akka-management bootstrap
+            - containerPort: 8558
+              protocol: TCP
+              # when contact-point-discovery.port-name is set for cluster bootstrap,
+              # the management port must be named accordingly:
+              # name: management
+            - name: http
+              containerPort: 9000
+              protocol: TCP
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            # The Kubernetes API discovery will use this service name to look for
+            # nodes with this value in the 'app' label.
+            # This can be customized with the 'pod-label-selector' setting.
+            - name: AKKA_CLUSTER_BOOTSTRAP_SERVICE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: "metadata.labels['app']"
+            - name: REQUIRED_CONTACT_POINT_NR
+              value: "1"
+            - name: "JAVA_OPTS"
+              value: "-Dplay.http.secret.key='9D3#jfdi@#J(&Fjdki' -Dconfig.resource=production.conf"
+---
+#
+# Create a role, `pod-reader`, that can list pods and
+# bind the default service account in the namespace
+# that the binding is deployed to to that role.
+#
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: pod-reader
+rules:
+  - apiGroups: [""] # "" indicates the core API group
+    resources: ["pods"]
+    verbs: ["get", "watch", "list"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: read-pods
+subjects:
+  # Uses the default service account.
+  # Consider creating a dedicated service account to run your
+  # Akka Cluster services and binding the role to that one.
+  - kind: ServiceAccount
+    name: default
+roleRef:
+  kind: Role
+  name: pod-reader
+  apiGroup: rbac.authorization.k8s.io
